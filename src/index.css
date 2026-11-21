@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    font-family: var(--font-sans);
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* ============================================================================
+   PLANTILLA DE IMPRESIÓN TÉRMICA (@media print)
+   Optimizada para impresoras POS térmicas de 80mm y 58mm
+   ============================================================================ */
+#thermal-receipt-print {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 0;
+  }
+
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Oculta toda la interfaz web del POS al imprimir */
+  body > #root > .no-print {
+    display: none !important;
+  }
+
+  /* Muestra únicamente el ticket térmico */
+  #thermal-receipt-print {
+    display: block !important;
+    font-family: "JetBrains Mono", "Courier New", Courier, monospace !important;
+    color: #000000 !important;
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    margin: 0 auto !important;
+  }
+
+  #thermal-receipt-print.ticket-80mm {
+    width: 72mm !important;
+    max-width: 72mm !important;
+    padding: 4mm 3mm !important;
+    font-size: 11px !important;
+    line-height: 1.35 !important;
+  }
+
+  #thermal-receipt-print.ticket-58mm {
+    width: 48mm !important;
+    max-width: 48mm !important;
+    padding: 3mm 2mm !important;
+    font-size: 9.5px !important;
+    line-height: 1.3 !important;
+  }
+
+  .ticket-divider {
+    border-top: 1px dashed #000000 !important;
+    margin: 6px 0 !important;
+  }
+}

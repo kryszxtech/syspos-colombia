@@ -1,0 +1,8 @@
+{
+  "name": "SysPOS Colombia",
+  "description": "Sistema Punto de Venta (POS) y Taller de Reparaciones con arquitectura doble Supabase para comercios en Colombia.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
