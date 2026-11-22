@@ -237,6 +237,9 @@ CREATE TABLE IF NOT EXISTS public.config_negocio (
   actualizado_en timestamptz NOT NULL DEFAULT now()
 );
 
+ALTER TABLE public.config_negocio
+  ADD COLUMN IF NOT EXISTS logo_url text DEFAULT '';
+
 -- 2. Catálogo de productos e inventario (inicia vacío)
 CREATE TABLE IF NOT EXISTS public.productos (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -246,10 +249,14 @@ CREATE TABLE IF NOT EXISTS public.productos (
   precio_costo integer NOT NULL DEFAULT 0 CHECK (precio_costo >= 0),
   precio_venta integer NOT NULL DEFAULT 0 CHECK (precio_venta >= 0),
   stock integer NOT NULL DEFAULT 0 CHECK (stock >= 0),
+  stock_minimo integer NOT NULL DEFAULT 5 CHECK (stock_minimo >= 0),
   activo boolean NOT NULL DEFAULT true,
   creado_en timestamptz NOT NULL DEFAULT now(),
   actualizado_en timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE public.productos
+  ADD COLUMN IF NOT EXISTS stock_minimo integer NOT NULL DEFAULT 5 CHECK (stock_minimo >= 0);
 
 CREATE INDEX IF NOT EXISTS idx_productos_codigo_barras ON public.productos (codigo_barras);
 CREATE INDEX IF NOT EXISTS idx_productos_categoria ON public.productos (categoria);

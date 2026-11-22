@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { PackagePlus, X } from 'lucide-react';
 import type { Product } from '../types/pos';
-import { parseNonNegativeInt } from '../utils/formatters';
+import { DEFAULT_LOW_STOCK_ALERT, parseNonNegativeInt } from '../utils/formatters';
 
 interface QuickProductModalProps {
   initialBarcode: string;
@@ -20,6 +20,7 @@ export const QuickProductModal: React.FC<QuickProductModalProps> = ({
   const [precioCosto, setPrecioCosto] = useState('');
   const [precioVenta, setPrecioVenta] = useState('');
   const [stock, setStock] = useState('1');
+  const [stockMinimo, setStockMinimo] = useState(String(DEFAULT_LOW_STOCK_ALERT));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,6 +48,10 @@ export const QuickProductModal: React.FC<QuickProductModalProps> = ({
         precio_costo: parseNonNegativeInt(precioCosto),
         precio_venta: venta,
         stock: parseNonNegativeInt(stock),
+        stock_minimo:
+          stockMinimo.trim() === ''
+            ? DEFAULT_LOW_STOCK_ALERT
+            : parseNonNegativeInt(stockMinimo),
         activo: true,
       });
       onClose();
@@ -106,16 +111,16 @@ export const QuickProductModal: React.FC<QuickProductModalProps> = ({
               required
             />
           </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Categoría</label>
+            <input
+              type="text"
+              value={categoria}
+              onChange={(e) => setCategoria(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600"
+            />
+          </div>
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Categoría</label>
-              <input
-                type="text"
-                value={categoria}
-                onChange={(e) => setCategoria(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600"
-              />
-            </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Stock inicial</label>
               <input
@@ -123,6 +128,20 @@ export const QuickProductModal: React.FC<QuickProductModalProps> = ({
                 min={0}
                 value={stock}
                 onChange={(e) => setStock(e.target.value)}
+                placeholder="Ej. 10"
+                className="w-full px-3 py-2 text-sm font-mono border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Alerta de stock bajo
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={stockMinimo}
+                onChange={(e) => setStockMinimo(e.target.value)}
+                placeholder="Ej. 2"
                 className="w-full px-3 py-2 text-sm font-mono border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600"
               />
             </div>

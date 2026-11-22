@@ -2,6 +2,7 @@ import React from 'react';
 import { Printer, X } from 'lucide-react';
 import type { BusinessConfig, ThermalReceiptData } from '../types/pos';
 import { formatCOP, formatDateTimeCO } from '../utils/formatters';
+import { PatternPreviewSvg, parsePatternNodes } from './PatternLockPad';
 
 interface ThermalReceiptProps {
   receipt: ThermalReceiptData | null;
@@ -184,11 +185,23 @@ const ReceiptBody: React.FC<{
               <strong>IMEI/Serie:</strong> {receipt.orden.imei_serie}
             </div>
           )}
-          {receipt.orden.clave_desbloqueo && (
-            <div>
-              <strong>Clave/Patrón:</strong> {receipt.orden.clave_desbloqueo}
-            </div>
-          )}
+          {receipt.orden.clave_desbloqueo && (() => {
+            const patternNodes = parsePatternNodes(receipt.orden.clave_desbloqueo);
+            return patternNodes ? (
+              <div style={{ marginTop: '4px', marginBottom: '4px' }}>
+                <div>
+                  <strong>Patrón:</strong> {patternNodes.join('-')}
+                </div>
+                <div style={{ marginTop: '3px' }}>
+                  <PatternPreviewSvg nodes={patternNodes} size={56} monochrome />
+                </div>
+              </div>
+            ) : (
+              <div>
+                <strong>Clave/PIN:</strong> {receipt.orden.clave_desbloqueo}
+              </div>
+            );
+          })()}
           <div>
             <strong>Falla:</strong> {receipt.orden.falla_reportada}
           </div>
@@ -269,7 +282,7 @@ export const ThermalReceipt: React.FC<ThermalReceiptProps> = ({
                   Vista previa de ticket ({businessConfig.tamano_ticket})
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Formato térmico listo para impresora POS
+                  Revisa el ticket y presiona Imprimir Ticket para confirmar
                 </p>
               </div>
               <button

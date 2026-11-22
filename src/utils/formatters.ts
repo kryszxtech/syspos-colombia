@@ -127,3 +127,28 @@ export function generateDocumentNumber(prefix: 'FAC' | 'ORD'): string {
   const rand = String(Math.floor(100 + Math.random() * 900));
   return `${prefix}-${yy}${mm}${dd}-${hh}${min}${rand}`;
 }
+
+export const DEFAULT_LOW_STOCK_ALERT = 5;
+
+/**
+ * Retorna el límite configurado para la alerta de stock bajo de un producto.
+ */
+export function getProductLowStockLimit(product: { stock_minimo?: number | null }): number {
+  const value = product.stock_minimo;
+  if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+    return Math.round(value);
+  }
+  return DEFAULT_LOW_STOCK_ALERT;
+}
+
+/**
+ * Indica si un producto activo alcanzó o bajó de su alerta de stock bajo.
+ */
+export function isProductLowStock(product: {
+  activo: boolean;
+  stock: number;
+  stock_minimo?: number | null;
+}): boolean {
+  if (!product.activo) return false;
+  return product.stock <= getProductLowStockLimit(product);
+}

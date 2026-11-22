@@ -9,7 +9,6 @@ import {
   Printer,
   Settings,
   ShoppingCart,
-  Store,
   Wrench,
 } from 'lucide-react';
 import type { ActiveSection, BusinessConfig, LicenseSession } from '../types/pos';
@@ -22,6 +21,7 @@ interface SidebarNavProps {
   businessConfig: BusinessConfig;
   clientConnected: boolean;
   laserFocused: boolean;
+  lowStockCount: number;
   onLogout: () => void;
 }
 
@@ -44,6 +44,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
   businessConfig,
   clientConnected,
   laserFocused,
+  lowStockCount,
   onLogout,
 }) => {
   const storeName = businessConfig.nombre_negocio.trim() || session.nombre_negocio;
@@ -63,8 +64,12 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
                 />
               </div>
             ) : (
-              <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
-                <Store className="w-4 h-4" />
+              <div className="w-9 h-9 rounded-lg bg-white border border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+                <img
+                  src="/assets/aistudio/punto-de-venta_60e36d8f.png"
+                  alt="SysPOS Colombia"
+                  className="w-full h-full object-contain p-0.5"
+                />
               </div>
             )}
             <div className="min-w-0">
@@ -79,19 +84,32 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const active = activeSection === item.id;
+            const showLowStock = item.id === 'inventario' && lowStockCount > 0;
             return (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => onSelectSection(item.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left cursor-pointer ${
+                className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left cursor-pointer ${
                   active
                     ? 'bg-emerald-600 text-white'
                     : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                 }`}
               >
-                <Icon className="w-4 h-4 shrink-0" />
-                <span className="truncate">{item.label}</span>
+                <span className="flex items-center gap-3 min-w-0">
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span className="truncate">{item.label}</span>
+                </span>
+                {showLowStock && (
+                  <span
+                    title={`${lowStockCount} producto(s) con stock bajo o agotado`}
+                    className={`font-mono text-[11px] font-bold tabular-nums px-1.5 py-0.5 rounded shrink-0 ${
+                      active ? 'bg-white/20 text-white' : 'bg-amber-500/20 text-amber-300'
+                    }`}
+                  >
+                    {lowStockCount}
+                  </span>
+                )}
               </button>
             );
           })}

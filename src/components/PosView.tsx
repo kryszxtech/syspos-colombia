@@ -10,7 +10,7 @@ import {
   ShoppingBag,
 } from 'lucide-react';
 import type { ActiveSection, Product } from '../types/pos';
-import { formatCOP } from '../utils/formatters';
+import { formatCOP, isProductLowStock } from '../utils/formatters';
 
 interface PosViewProps {
   products: Product[];
@@ -343,7 +343,7 @@ export const PosView: React.FC<PosViewProps> = ({
                         className={`font-mono tabular-nums shrink-0 font-semibold ${
                           outOfStock
                             ? 'text-red-600'
-                            : product.stock <= 5
+                            : isProductLowStock(product)
                               ? 'text-amber-600'
                               : 'text-slate-500'
                         }`}

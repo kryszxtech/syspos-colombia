@@ -65,6 +65,7 @@ export interface Product {
   precio_costo: number;
   precio_venta: number;
   stock: number;
+  stock_minimo?: number;
   activo: boolean;
   creado_en?: string;
   actualizado_en?: string;

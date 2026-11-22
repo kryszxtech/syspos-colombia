@@ -10,6 +10,7 @@ import type {
   SaleItem,
 } from '../types/pos';
 import {
+  DEFAULT_LOW_STOCK_ALERT,
   generateDocumentNumber,
   isValidSupabaseUrl,
   normalizeSupabaseProjectUrl,
@@ -17,6 +18,7 @@ import {
 
 const CLIENT_SUPABASE_STORAGE_KEY = 'syspos_client_supabase_v1';
 const BUSINESS_CONFIG_STORAGE_KEY = 'syspos_business_config_v1';
+const PRODUCT_MIN_STOCK_STORAGE_KEY = 'syspos_product_min_stock_v1';
 
 export const DEFAULT_BUSINESS_CONFIG: BusinessConfig = {
   nombre_negocio: '',
@@ -224,6 +226,49 @@ export async function upsertBusinessConfigToClient(config: BusinessConfig): Prom
 // ============================================================================
 // PRODUCTOS / INVENTARIO
 // ============================================================================
+function readStoredProductMinStockMap(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(PRODUCT_MIN_STOCK_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const clean: Record<string, number> = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (typeof v === 'number' && Number.isFinite(v) && v >= 0) {
+        clean[k] = Math.round(v);
+      }
+    }
+    return clean;
+  } catch {
+    return {};
+  }
+}
+
+function saveStoredProductMinStock(productId: string, minStock: number): void {
+  const map = readStoredProductMinStockMap();
+  map[productId] = Math.max(0, Math.round(minStock));
+  localStorage.setItem(PRODUCT_MIN_STOCK_STORAGE_KEY, JSON.stringify(map));
+}
+
+function removeStoredProductMinStock(productId: string): void {
+  const map = readStoredProductMinStockMap();
+  if (productId in map) {
+    delete map[productId];
+    localStorage.setItem(PRODUCT_MIN_STOCK_STORAGE_KEY, JSON.stringify(map));
+  }
+}
+
+function normalizeProductRow(row: Product, storedMap: Record<string, number>): Product {
+  const remoteMin =
+    typeof row.stock_minimo === 'number' && Number.isFinite(row.stock_minimo) && row.stock_minimo >= 0
+      ? Math.round(row.stock_minimo)
+      : undefined;
+  const resolvedMin = remoteMin ?? storedMap[row.id] ?? DEFAULT_LOW_STOCK_ALERT;
+  return {
+    ...row,
+    stock_minimo: resolvedMin,
+  };
+}
+
 export async function fetchProducts(): Promise<Product[]> {
   const client = requireClient();
   const { data, error } = await client
@@ -231,14 +276,20 @@ export async function fetchProducts(): Promise<Product[]> {
     .select('*')
     .order('nombre', { ascending: true });
   if (error) throw new Error(error.message);
-  return (data ?? []) as Product[];
+  const storedMap = readStoredProductMinStockMap();
+  return ((data ?? []) as Product[]).map((row) => normalizeProductRow(row, storedMap));
 }
 
 export async function createProduct(
   input: Omit<Product, 'id' | 'creado_en' | 'actualizado_en'>,
 ): Promise<Product> {
   const client = requireClient();
-  const payload = {
+  const minStock =
+    typeof input.stock_minimo === 'number' && Number.isFinite(input.stock_minimo)
+      ? Math.max(0, Math.round(input.stock_minimo))
+      : DEFAULT_LOW_STOCK_ALERT;
+
+  const basePayload = {
     codigo_barras: input.codigo_barras?.trim() || null,
     nombre: input.nombre.trim(),
     categoria: input.categoria.trim() || 'General',
@@ -247,9 +298,31 @@ export async function createProduct(
     stock: Math.max(0, Math.round(input.stock)),
     activo: input.activo,
   };
-  const { data, error } = await client.from('productos').insert(payload).select().single();
-  if (error) throw new Error(error.message);
-  return data as Product;
+
+  const { data, error } = await client
+    .from('productos')
+    .insert({ ...basePayload, stock_minimo: minStock })
+    .select()
+    .single();
+
+  if (error) {
+    if (error.message.includes('stock_minimo')) {
+      const { data: fallbackData, error: fallbackError } = await client
+        .from('productos')
+        .insert(basePayload)
+        .select()
+        .single();
+      if (fallbackError) throw new Error(fallbackError.message);
+      const created = fallbackData as Product;
+      saveStoredProductMinStock(created.id, minStock);
+      return { ...created, stock_minimo: minStock };
+    }
+    throw new Error(error.message);
+  }
+
+  const created = data as Product;
+  saveStoredProductMinStock(created.id, minStock);
+  return { ...created, stock_minimo: minStock };
 }
 
 export async function updateProduct(
@@ -257,27 +330,58 @@ export async function updateProduct(
   input: Partial<Omit<Product, 'id' | 'creado_en' | 'actualizado_en'>>,
 ): Promise<Product> {
   const client = requireClient();
-  const payload = {
+  const minStock =
+    input.stock_minimo !== undefined && Number.isFinite(input.stock_minimo)
+      ? Math.max(0, Math.round(input.stock_minimo))
+      : undefined;
+
+  const basePayload = {
     ...input,
     codigo_barras: input.codigo_barras !== undefined ? input.codigo_barras?.trim() || null : undefined,
     nombre: input.nombre !== undefined ? input.nombre.trim() : undefined,
     categoria: input.categoria !== undefined ? input.categoria.trim() || 'General' : undefined,
+    stock_minimo: minStock,
     actualizado_en: new Date().toISOString(),
   };
+
   const { data, error } = await client
     .from('productos')
-    .update(payload)
+    .update(basePayload)
     .eq('id', id)
     .select()
     .single();
-  if (error) throw new Error(error.message);
-  return data as Product;
+
+  if (error) {
+    if (error.message.includes('stock_minimo')) {
+      const { stock_minimo: _ignored, ...payloadWithoutMin } = basePayload;
+      const { data: fallbackData, error: fallbackError } = await client
+        .from('productos')
+        .update(payloadWithoutMin)
+        .eq('id', id)
+        .select()
+        .single();
+      if (fallbackError) throw new Error(fallbackError.message);
+      if (minStock !== undefined) {
+        saveStoredProductMinStock(id, minStock);
+      }
+      const storedMap = readStoredProductMinStockMap();
+      return normalizeProductRow(fallbackData as Product, storedMap);
+    }
+    throw new Error(error.message);
+  }
+
+  if (minStock !== undefined) {
+    saveStoredProductMinStock(id, minStock);
+  }
+  const storedMap = readStoredProductMinStockMap();
+  return normalizeProductRow(data as Product, storedMap);
 }
 
 export async function deleteProduct(id: string): Promise<void> {
   const client = requireClient();
   const { error } = await client.from('productos').delete().eq('id', id);
   if (error) throw new Error(error.message);
+  removeStoredProductMinStock(id);
 }
 
 // ============================================================================

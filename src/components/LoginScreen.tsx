@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Lock, LogIn, ShieldAlert, Store, User } from 'lucide-react';
+import { Eye, EyeOff, Lock, LogIn, ShieldAlert, User } from 'lucide-react';
 import { loginWithMasterSupabase } from '../config/masterSupabase';
 import type { LicenseSession } from '../types/pos';
 
@@ -58,9 +58,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthenticated }) => 
     <div className="min-h-screen bg-slate-50 flex flex-col justify-between">
       <header className="w-full border-b border-slate-200 bg-white px-6 py-4 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-slate-900 text-white flex items-center justify-center shrink-0">
-            <Store className="w-5 h-5" />
-          </div>
+          <img
+            src="/assets/aistudio/punto-de-venta_60e36d8f.png"
+            alt="SysPOS Colombia"
+            className="w-10 h-10 object-contain shrink-0"
+          />
           <div>
             <h1 className="text-base font-bold tracking-tight text-slate-900 leading-tight">
               SysPOS Colombia

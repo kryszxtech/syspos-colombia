@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import {
   Database,
+  Grid3x3,
+  KeyRound,
   Laptop,
   Plus,
   Printer,
@@ -8,10 +10,17 @@ import {
   ShoppingCart,
   Smartphone,
   Trash2,
+  Unlock,
   Wrench,
 } from 'lucide-react';
 import type { DeviceType, RepairOrder, RepairStatus } from '../types/pos';
 import { formatCOP, formatDateTimeCO, parseNonNegativeInt } from '../utils/formatters';
+import {
+  PatternLockPad,
+  PatternPreviewSvg,
+  formatPatternValue,
+  parsePatternNodes,
+} from './PatternLockPad';
 
 interface WorkshopViewProps {
   repairs: RepairOrder[];
@@ -60,7 +69,9 @@ export const WorkshopView: React.FC<WorkshopViewProps> = ({
   const [whatsapp, setWhatsapp] = useState('');
   const [marcaModelo, setMarcaModelo] = useState('');
   const [imeiSerie, setImeiSerie] = useState('');
+  const [unlockMode, setUnlockMode] = useState<'pin' | 'patron' | 'none'>('pin');
   const [claveDesbloqueo, setClaveDesbloqueo] = useState('');
+  const [patternNodes, setPatternNodes] = useState<number[]>([]);
   const [fallaReportada, setFallaReportada] = useState('');
   const [accesorios, setAccesorios] = useState('');
   const [valorEstimado, setValorEstimado] = useState('');
@@ -88,6 +99,18 @@ export const WorkshopView: React.FC<WorkshopViewProps> = ({
       return;
     }
 
+    if (unlockMode === 'patron' && patternNodes.length === 1) {
+      setErrorMsg('Traza al menos 2 puntos en el patrón o selecciona "Sin clave".');
+      return;
+    }
+
+    const resolvedUnlock =
+      unlockMode === 'patron'
+        ? formatPatternValue(patternNodes)
+        : unlockMode === 'pin'
+          ? claveDesbloqueo.trim()
+          : '';
+
     setSaving(true);
     try {
       const created = await onCreateRepair({
@@ -96,7 +119,7 @@ export const WorkshopView: React.FC<WorkshopViewProps> = ({
         whatsapp: whatsapp.trim(),
         marca_modelo: marcaModelo.trim(),
         imei_serie: imeiSerie.trim(),
-        clave_desbloqueo: claveDesbloqueo.trim(),
+        clave_desbloqueo: resolvedUnlock,
         falla_reportada: fallaReportada.trim(),
         accesorios: accesorios.trim(),
         valor_estimado: valorEstimadoNum,
@@ -109,7 +132,9 @@ export const WorkshopView: React.FC<WorkshopViewProps> = ({
       setWhatsapp('');
       setMarcaModelo('');
       setImeiSerie('');
+      setUnlockMode('pin');
       setClaveDesbloqueo('');
+      setPatternNodes([]);
       setFallaReportada('');
       setAccesorios('');
       setValorEstimado('');
@@ -167,7 +192,7 @@ export const WorkshopView: React.FC<WorkshopViewProps> = ({
   }
 
   return (
-    <div className="h-full flex flex-col gap-4 overflow-y-auto pr-0.5">
+    <div className="h-full overflow-y-auto pr-1 space-y-4">
       {/* Formulario de recepción de equipo */}
       <form
         onSubmit={handleSubmit}
@@ -270,17 +295,70 @@ export const WorkshopView: React.FC<WorkshopViewProps> = ({
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Clave / Patrón de desbloqueo
-            </label>
-            <input
-              type="text"
-              value={claveDesbloqueo}
-              onChange={(e) => setClaveDesbloqueo(e.target.value)}
-              placeholder="PIN, contraseña o patrón"
-              className="w-full px-3 py-2 text-sm font-mono border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600"
-            />
+          <div className={unlockMode === 'patron' ? 'sm:col-span-2' : ''}>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+              <label className="block text-xs font-semibold text-slate-700">
+                Clave / Patrón de desbloqueo
+              </label>
+              <div className="inline-flex items-center gap-1 p-0.5 bg-slate-100 rounded-md">
+                <button
+                  type="button"
+                  onClick={() => setUnlockMode('pin')}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded cursor-pointer ${
+                    unlockMode === 'pin'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <KeyRound className="w-3 h-3" />
+                  PIN / Clave
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUnlockMode('patron')}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded cursor-pointer ${
+                    unlockMode === 'patron'
+                      ? 'bg-white text-emerald-700 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Grid3x3 className="w-3 h-3" />
+                  Patrón
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUnlockMode('none')}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded cursor-pointer ${
+                    unlockMode === 'none'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Unlock className="w-3 h-3" />
+                  Sin clave
+                </button>
+              </div>
+            </div>
+
+            {unlockMode === 'pin' && (
+              <input
+                type="text"
+                value={claveDesbloqueo}
+                onChange={(e) => setClaveDesbloqueo(e.target.value)}
+                placeholder="Ej. 1234 o contraseña"
+                className="w-full px-3 py-2 text-sm font-mono border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              />
+            )}
+
+            {unlockMode === 'patron' && (
+              <PatternLockPad nodes={patternNodes} onChange={setPatternNodes} />
+            )}
+
+            {unlockMode === 'none' && (
+              <div className="px-3 py-2 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg">
+                El equipo ingresa sin PIN, contraseña ni patrón de bloqueo.
+              </div>
+            )}
           </div>
 
           <div className="sm:col-span-2">
@@ -377,10 +455,10 @@ export const WorkshopView: React.FC<WorkshopViewProps> = ({
       </form>
 
       {/* Lista de órdenes de taller */}
-      <div className="bg-white border border-slate-200 rounded-xl flex-1 flex flex-col min-h-[280px]">
-        <div className="px-5 py-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-white border border-slate-200 rounded-xl">
+        <div className="px-5 py-4 border-b border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-bold text-slate-900 mr-2">
+            <span className="text-sm font-bold text-slate-900 mr-1">
               Órdenes de Taller ({repairs.length})
             </span>
             {['Todos', ...REPAIR_STATUSES].map((st) => (
@@ -388,7 +466,7 @@ export const WorkshopView: React.FC<WorkshopViewProps> = ({
                 key={st}
                 type="button"
                 onClick={() => setStatusFilter(st)}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
                   statusFilter === st
                     ? 'bg-slate-900 text-white'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -399,7 +477,7 @@ export const WorkshopView: React.FC<WorkshopViewProps> = ({
             ))}
           </div>
 
-          <div className="relative w-full sm:w-60">
+          <div className="relative w-full lg:w-64 shrink-0">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
@@ -411,7 +489,7 @@ export const WorkshopView: React.FC<WorkshopViewProps> = ({
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto divide-y divide-slate-100">
+        <div className="p-4 space-y-3">
           {loading ? (
             <div className="p-8 text-center text-sm text-slate-500">Cargando órdenes...</div>
           ) : filteredRepairs.length === 0 ? (
@@ -421,125 +499,189 @@ export const WorkshopView: React.FC<WorkshopViewProps> = ({
                 : 'No hay órdenes que coincidan con el filtro seleccionado.'}
             </div>
           ) : (
-            filteredRepairs.map((order) => (
-              <div
-                key={order.id}
-                className="p-4 flex flex-col xl:flex-row xl:items-center justify-between gap-4 hover:bg-slate-50/70 transition-colors"
-              >
-                <div className="space-y-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                    <span className="font-mono font-bold text-slate-900">{order.numero_orden}</span>
-                    <span aria-hidden="true">·</span>
-                    <span>{order.tipo_equipo}</span>
-                    <span aria-hidden="true">·</span>
-                    <span className="font-mono tabular-nums">
-                      {formatDateTimeCO(order.creado_en)}
-                    </span>
-                  </div>
-                  <p className="text-sm font-bold text-slate-900">
-                    {order.marca_modelo} — {order.nombre_cliente}{' '}
-                    <span className="font-mono font-normal text-xs text-slate-500">
-                      ({order.whatsapp})
-                    </span>
-                  </p>
-                  <p className="text-xs text-slate-600">
-                    <strong>Falla:</strong> {order.falla_reportada}
-                    {order.imei_serie && (
-                      <>
-                        {' · '}
-                        <strong>IMEI/Serie:</strong>{' '}
-                        <span className="font-mono">{order.imei_serie}</span>
-                      </>
-                    )}
-                    {order.accesorios && (
-                      <>
-                        {' · '}
-                        <strong>Accesorios:</strong> {order.accesorios}
-                      </>
-                    )}
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3 shrink-0">
-                  <div className="text-right font-mono tabular-nums text-xs mr-1">
-                    <div className="text-slate-500">
-                      Est: {formatCOP(order.valor_estimado)} · Abono: {formatCOP(order.abono_inicial)}
+            filteredRepairs.map((order) => {
+              const parsedPattern = parsePatternNodes(order.clave_desbloqueo);
+              return (
+                <div
+                  key={order.id}
+                  className="bg-slate-50/50 border border-slate-200 rounded-xl p-4 space-y-3 hover:border-slate-300 transition-colors"
+                >
+                  {/* Fila superior de la orden */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-200/80">
+                    <div className="flex flex-wrap items-center gap-2.5 text-xs">
+                      <span className="font-mono font-bold text-slate-900 bg-white border border-slate-200 px-2 py-0.5 rounded-md">
+                        {order.numero_orden}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-slate-600 font-medium">
+                        {order.tipo_equipo === 'Teléfono / Celular' && (
+                          <Smartphone className="w-3.5 h-3.5 text-slate-500" />
+                        )}
+                        {order.tipo_equipo === 'Computador / Portátil' && (
+                          <Laptop className="w-3.5 h-3.5 text-slate-500" />
+                        )}
+                        {order.tipo_equipo === 'Otro dispositivo' && (
+                          <Wrench className="w-3.5 h-3.5 text-slate-500" />
+                        )}
+                        {order.tipo_equipo}
+                      </span>
+                      <span className="font-mono text-slate-500 tabular-nums">
+                        {formatDateTimeCO(order.creado_en)}
+                      </span>
                     </div>
-                    <div
-                      className={`text-sm font-bold ${
-                        order.saldo_pendiente > 0 ? 'text-amber-700' : 'text-emerald-700'
-                      }`}
-                    >
-                      Saldo: {formatCOP(order.saldo_pendiente)}
-                    </div>
-                  </div>
 
-                  <select
-                    aria-label={`Estado de ${order.numero_orden}`}
-                    value={order.estado}
-                    onChange={(e) => onUpdateStatus(order.id, e.target.value as RepairStatus)}
-                    className="px-2.5 py-1.5 text-xs font-medium border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600"
-                  >
-                    {REPAIR_STATUSES.map((st) => (
-                      <option key={st} value={st}>
-                        {st}
-                      </option>
-                    ))}
-                  </select>
-
-                  <button
-                    type="button"
-                    onClick={() => onPrintReceptionTicket(order)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg cursor-pointer whitespace-nowrap"
-                  >
-                    <Printer className="w-3.5 h-3.5" />
-                    Ticket Recepción
-                  </button>
-
-                  {order.saldo_pendiente > 0 && !order.cobrado_en_pos && (
-                    <button
-                      type="button"
-                      onClick={() => onSendBalanceToPos(order)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg cursor-pointer whitespace-nowrap"
-                    >
-                      <ShoppingCart className="w-3.5 h-3.5" />
-                      Cobrar Saldo en el POS
-                    </button>
-                  )}
-
-                  {confirmDeleteId === order.id ? (
-                    <div className="inline-flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onDeleteRepair(order.id);
-                          setConfirmDeleteId(null);
-                        }}
-                        className="px-2 py-1 text-[11px] font-semibold text-white bg-red-600 rounded cursor-pointer"
+                    <div className="flex items-center gap-2 shrink-0">
+                      <select
+                        aria-label={`Estado de ${order.numero_orden}`}
+                        value={order.estado}
+                        onChange={(e) => onUpdateStatus(order.id, e.target.value as RepairStatus)}
+                        className="px-2.5 py-1.5 text-xs font-medium border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600"
                       >
-                        Eliminar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDeleteId(null)}
-                        className="px-2 py-1 text-[11px] text-slate-600 bg-slate-100 rounded cursor-pointer"
-                      >
-                        No
-                      </button>
+                        {REPAIR_STATUSES.map((st) => (
+                          <option key={st} value={st}>
+                            {st}
+                          </option>
+                        ))}
+                      </select>
+
+                      {confirmDeleteId === order.id ? (
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onDeleteRepair(order.id);
+                              setConfirmDeleteId(null);
+                            }}
+                            className="px-2 py-1 text-[11px] font-semibold text-white bg-red-600 rounded cursor-pointer"
+                          >
+                            Eliminar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteId(null)}
+                            className="px-2 py-1 text-[11px] text-slate-600 bg-slate-200 rounded cursor-pointer"
+                          >
+                            No
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteId(order.id)}
+                          aria-label={`Eliminar orden ${order.numero_orden}`}
+                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setConfirmDeleteId(order.id)}
-                      aria-label={`Eliminar orden ${order.numero_orden}`}
-                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
+                  </div>
+
+                  {/* Cuerpo principal organizado en 2 zonas */}
+                  <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+                    <div className="flex-1 min-w-0 space-y-2">
+                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                        <h3 className="text-sm font-bold text-slate-900">{order.marca_modelo}</h3>
+                        <span className="text-sm font-medium text-slate-700">
+                          — {order.nombre_cliente}
+                        </span>
+                        <span className="font-mono text-xs text-slate-500">
+                          ({order.whatsapp})
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-1 text-xs text-slate-600">
+                        <div>
+                          <span className="font-semibold text-slate-700">Falla:</span>{' '}
+                          {order.falla_reportada}
+                        </div>
+                        {order.imei_serie && (
+                          <div>
+                            <span className="font-semibold text-slate-700">IMEI / Serie:</span>{' '}
+                            <span className="font-mono">{order.imei_serie}</span>
+                          </div>
+                        )}
+                        {order.accesorios && (
+                          <div>
+                            <span className="font-semibold text-slate-700">Accesorios:</span>{' '}
+                            {order.accesorios}
+                          </div>
+                        )}
+                      </div>
+
+                      {order.clave_desbloqueo && (
+                        <div className="pt-0.5">
+                          {parsedPattern ? (
+                            <div className="inline-flex items-center gap-2.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
+                              <PatternPreviewSvg nodes={parsedPattern} size={40} />
+                              <span className="text-xs font-mono text-slate-700">
+                                <strong>Patrón:</strong> {parsedPattern.join(' → ')}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 text-xs text-slate-700 bg-white border border-slate-200 rounded-md px-2.5 py-1">
+                              <strong>Clave / PIN:</strong>
+                              <span className="font-mono">{order.clave_desbloqueo}</span>
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Totales y botones de acción */}
+                    <div className="shrink-0 flex flex-col sm:flex-row xl:flex-col items-stretch sm:items-center xl:items-end gap-2.5">
+                      <div className="grid grid-cols-3 gap-4 bg-white border border-slate-200 rounded-lg px-3.5 py-2 font-mono tabular-nums text-xs">
+                        <div>
+                          <span className="block text-[10px] font-sans text-slate-500">
+                            Estimado
+                          </span>
+                          <span className="font-semibold text-slate-800">
+                            {formatCOP(order.valor_estimado)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="block text-[10px] font-sans text-slate-500">Abono</span>
+                          <span className="font-semibold text-slate-800">
+                            {formatCOP(order.abono_inicial)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="block text-[10px] font-sans text-slate-500">Saldo</span>
+                          <span
+                            className={`font-bold ${
+                              order.saldo_pendiente > 0 ? 'text-amber-700' : 'text-emerald-700'
+                            }`}
+                          >
+                            {formatCOP(order.saldo_pendiente)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => onPrintReceptionTicket(order)}
+                          className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg cursor-pointer whitespace-nowrap"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          Ticket Recepción
+                        </button>
+
+                        {order.saldo_pendiente > 0 && !order.cobrado_en_pos && (
+                          <button
+                            type="button"
+                            onClick={() => onSendBalanceToPos(order)}
+                            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg cursor-pointer whitespace-nowrap"
+                          >
+                            <ShoppingCart className="w-3.5 h-3.5" />
+                            Cobrar Saldo en el POS
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>

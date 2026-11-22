@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, RefreshCw, X } from 'lucide-react';
 import { CartSidebar } from './components/CartSidebar';
 import { InventoryView } from './components/InventoryView';
 import { LicenseBlockedScreen } from './components/LicenseBlockedScreen';
@@ -36,7 +36,11 @@ import {
   updateRepairStatus,
   upsertBusinessConfigToClient,
 } from './services/clientSupabase';
-import { isValidSupabaseUrl } from './utils/formatters';
+import {
+  getProductLowStockLimit,
+  isProductLowStock,
+  isValidSupabaseUrl,
+} from './utils/formatters';
 import type {
   ActiveSection,
   BusinessConfig,
@@ -79,6 +83,24 @@ export default function App() {
   const [quickCreateBarcode, setQuickCreateBarcode] = useState<string | null>(null);
   const [receiptData, setReceiptData] = useState<ThermalReceiptData | null>(null);
   const [receiptPreviewOpen, setReceiptPreviewOpen] = useState<boolean>(false);
+  const [lowStockDismissed, setLowStockDismissed] = useState<boolean>(false);
+  const [focusLowStockSignal, setFocusLowStockSignal] = useState<number>(0);
+  const prevLowStockKeyRef = useRef<string>('');
+
+  const lowStockProducts = useMemo(
+    () => products.filter((p) => isProductLowStock(p)),
+    [products],
+  );
+
+  useEffect(() => {
+    const key = lowStockProducts
+      .map((p) => `${p.id}:${p.stock}:${getProductLowStockLimit(p)}`)
+      .join('|');
+    if (key && key !== prevLowStockKeyRef.current) {
+      setLowStockDismissed(false);
+    }
+    prevLowStockKeyRef.current = key;
+  }, [lowStockProducts]);
 
   const loadAllClientData = useCallback(async () => {
     const cfg = getClientSupabaseConfig();
@@ -398,9 +420,6 @@ export default function App() {
   const handlePrintReceptionTicket = (order: RepairOrder) => {
     setReceiptData({ tipo: 'taller', orden: order });
     setReceiptPreviewOpen(true);
-    setTimeout(() => {
-      window.print();
-    }, 150);
   };
 
   const handleSendRepairBalanceToPos = (order: RepairOrder) => {
@@ -433,9 +452,6 @@ export default function App() {
       items: sale.detalle_ventas ?? [],
     });
     setReceiptPreviewOpen(true);
-    setTimeout(() => {
-      window.print();
-    }, 150);
   };
 
   const handleSaveBusinessConfig = async (cfg: BusinessConfig) => {
@@ -484,6 +500,7 @@ export default function App() {
             businessConfig={businessConfig}
             clientConnected={clientConnected}
             laserFocused={laserFocused}
+            lowStockCount={lowStockProducts.length}
             onLogout={handleLogout}
           />
 
@@ -499,6 +516,52 @@ export default function App() {
                 >
                   Reintentar
                 </button>
+              </div>
+            )}
+
+            {lowStockProducts.length > 0 && !lowStockDismissed && activeSection !== 'inventario' && (
+              <div
+                role="status"
+                className="mb-3 px-4 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950 flex items-center justify-between gap-3 shrink-0"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <p className="truncate">
+                    <strong>Alerta de stock bajo ({lowStockProducts.length}):</strong>{' '}
+                    {lowStockProducts
+                      .slice(0, 3)
+                      .map(
+                        (p) =>
+                          `${p.nombre} (${
+                            p.stock === 0
+                              ? 'Agotado'
+                              : `${p.stock} uds · mín. ${getProductLowStockLimit(p)}`
+                          })`,
+                      )
+                      .join(' · ')}
+                    {lowStockProducts.length > 3 ? ` · +${lowStockProducts.length - 3} más` : ''}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFocusLowStockSignal((prev) => prev + 1);
+                      setActiveSection('inventario');
+                    }}
+                    className="px-2.5 py-1 font-semibold text-amber-950 bg-white border border-amber-300 hover:bg-amber-100 rounded-md cursor-pointer whitespace-nowrap"
+                  >
+                    Ver en Inventario
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLowStockDismissed(true)}
+                    aria-label="Cerrar notificación de stock bajo"
+                    className="p-1 text-amber-700 hover:text-amber-950 rounded cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             )}
 
@@ -524,6 +587,7 @@ export default function App() {
                   products={products}
                   loading={loadingClientData}
                   clientConnected={clientConnected}
+                  focusLowStockSignal={focusLowStockSignal}
                   onCreateProduct={(input) => handleCreateProduct(input, false)}
                   onUpdateProduct={handleUpdateProduct}
                   onDeleteProduct={handleDeleteProduct}
